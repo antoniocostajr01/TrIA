@@ -42,6 +42,9 @@ O sistema é um **Web App único** com **seletor rápido de perfil no topo** (`C
 - **Filtro inteligente "O que você quer doar?":**
   - O cidadão escolhe uma categoria (*Roupas/Agasalhos*, *Água*, *Alimentos*, *Higiene/Limpeza*, *Colchões/Cama*, *Ração Pet*).
   - O mapa destaca onde aquele item é **Urgente** e sinaliza claramente onde o recebimento daquele item está **Suspenso por excesso**, direcionando a doação para o abrigo certo antes de sair de casa.
+- **Chatbot Assistente do Doador (`components/DonorChatbot.tsx` + `/api/donor-chat`):**
+  - Conversa com o usuário lendo o snapshot em tempo real dos estoques e alertas dos abrigos de Porto Alegre.
+  - Dá dicas diretas de qual abrigo mais precisa do item que o cidadão tem em mãos (informando endereço e detalhe da carência) e avisa onde **não levar** quando a coleta daquele item está suspensa por excesso.
 
 ### Frente 2: Voluntário na Ponta (Triagem com Câmera/IA + Cadastro Manual)
 - **Fricção zero no descarte:** itens visivelmente inutilizáveis (rasgados, mofados, sujos) são descartados de imediato pelo voluntário e podem ser somados em 1 toque ao **Lote de Reciclagem Têxtil** (economia circular), sem gastar chamada de API.
