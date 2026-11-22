@@ -133,6 +133,48 @@ export const shelters: Shelter[] = [
       racao_pet: 25,
     },
   },
+  {
+    id: "cristal",
+    name: "Abrigo Cristal · Zona Sul",
+    district: "Cristal · Zona Sul",
+    coordinates: [-30.0835, -51.2465],
+    stock: {
+      roupas: 24,
+      agua: 35,
+      alimentos: 22,
+      higiene: 42,
+      colchoes_cama: 16,
+      racao_pet: 28,
+    },
+  },
+  {
+    id: "partenon",
+    name: "Centro Comunitário Partenon",
+    district: "Partenon · Zona Leste",
+    coordinates: [-30.0608, -51.1635],
+    stock: {
+      roupas: 30,
+      agua: 115,
+      alimentos: 90,
+      higiene: 12,
+      colchoes_cama: 10,
+      racao_pet: 35,
+    },
+  },
+  {
+    id: "restinga",
+    name: "Ginásio Comunitário Restinga",
+    district: "Restinga · Extremo Sul",
+    coordinates: [-30.1455, -51.1485],
+    stock: {
+      roupas: 15,
+      agua: 45,
+      alimentos: 28,
+      higiene: 18,
+      colchoes_cama: 24,
+      racao_pet: 6,
+    },
+  },
 ];
 export const targets: Record<CategoryId, number> = {
   roupas: 100,

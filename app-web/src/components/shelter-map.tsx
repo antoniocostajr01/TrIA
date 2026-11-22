@@ -19,6 +19,7 @@ export type MapLocation = {
   status: Status;
   details: string[];
   badge?: number;
+  pointType?: "hub" | "shelter";
 };
 function Focus({ location }: { location: MapLocation | undefined }) {
   const map = useMap();
@@ -92,10 +93,10 @@ export default function LocationMap({
       <FitLocations locations={locations} selected={selected} />
       <Focus location={focus} />
       {locations.map((l) => {
-        const shape =
-          kind === "hubs"
-            ? '<path d="m3 7 9-4 9 4v10l-9 4-9-4Z"/><path d="m3 7 9 4 9-4M12 11v10M7.5 5l9 4"/>'
-            : '<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>';
+        const isHub = l.pointType ? l.pointType === "hub" : kind === "hubs";
+        const shape = isHub
+          ? '<path d="m3 7 9-4 9 4v10l-9 4-9-4Z"/><path d="m3 7 9 4 9-4M12 11v10M7.5 5l9 4"/>'
+          : '<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>';
         const icon = L.divIcon({
           className: "map-marker-wrapper",
           html: `<span aria-hidden="true" class="map-pin ${l.status} ${selected === l.id ? "selected" : ""}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${shape}</svg>${l.badge ? `<b class="pin-count">${l.badge}</b>` : ""}</span>`,

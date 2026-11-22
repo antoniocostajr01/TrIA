@@ -8,9 +8,17 @@ import {
   type Shelter,
 } from "@/lib/demo-data";
 import { collectionHubs } from "@/lib/collection-hubs";
-import { Check, Loader2, MessageSquare, Send, Sparkles, X } from "lucide-react";
+import {
+  Building2,
+  Check,
+  ImagePlus,
+  Loader2,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
 
-export type TriaChatAction =
+export type ShelterChatAction =
   | {
       type: "register_entry";
       shelterId: string;
@@ -22,55 +30,47 @@ export type TriaChatAction =
       quantity: number;
     };
 
-type ChatMessage = {
+type ShelterChatMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  imagePreview?: string;
   appliedLabels?: string[];
 };
 
-const QUICK_BY_PROFILE = {
-  citizen: [
-    "Onde precisa de mais doações agora?",
-    "Quero doar roupas, onde levo?",
-    "O que posso doar hoje?",
-  ],
-  volunteer: [
-    "Chegaram 25 roupas e 30 litros de água aqui",
-    "Registrar 15 kits de higiene no estoque",
-    "Como está o estoque deste abrigo?",
-  ],
-  manager: [
-    "Como está o estoque do meu abrigo?",
-    "Registrar 40 litros de água e 10 cobertores",
-    "O que priorizar nos alertas?",
-  ],
-} as const;
+const SHELTER_PROMPTS = [
+  "Como está o estoque deste abrigo?",
+  "Chegaram 25 roupas e 30 litros de água aqui",
+  "Registrar 15 kits de higiene no estoque",
+];
 
-export function TriaChatbot({
+export function ShelterChatbot({
   profile,
   activeShelterId,
   shelters,
   alerts,
   onApplyActions,
 }: {
-  profile: "citizen" | "volunteer" | "manager";
+  profile: "volunteer" | "manager";
   activeShelterId: string;
   shelters: Shelter[];
   alerts: Alert[];
-  onApplyActions: (actions: TriaChatAction[]) => void;
+  onApplyActions: (actions: ShelterChatAction[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<ShelterChatMessage[]>([
     {
-      id: "welcome",
+      id: "shelter-welcome",
       role: "assistant",
-      text: "Olá! Posso te mostrar onde doar com mais urgência (incluindo hubs para roupas) ou ajudar o abrigo a registrar entradas direto no estoque.",
+      text: "Olá, equipe do abrigo! Você pode digitar o que chegou (ex: '20 casacos e 40L de água') ou enviar uma foto dos itens pelo ícone de imagem que eu identifico e lanço direto na dashboard.",
     },
   ]);
+
   const listRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open && listRef.current) {
@@ -78,14 +78,16 @@ export function TriaChatbot({
     }
   }, [messages, open]);
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, customImage?: string | null) {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    const imgToSend = customImage !== undefined ? customImage : attachedImage;
+    if ((!trimmed && !imgToSend) || loading) return;
 
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
+    const userMsg: ShelterChatMessage = {
+      id: `su-${Date.now()}`,
       role: "user",
-      text: trimmed,
+      text: trimmed || "Foto de doação enviada para registro no estoque.",
+      imagePreview: imgToSend || undefined,
     };
 
     const nextHistory = [...messages, userMsg].map((m) => ({
@@ -95,6 +97,7 @@ export function TriaChatbot({
 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setAttachedImage(null);
     setLoading(true);
 
     try {
@@ -103,6 +106,7 @@ export function TriaChatbot({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
+          imageBase64: imgToSend || undefined,
           history: nextHistory,
           profile,
           activeShelterId,
@@ -112,7 +116,7 @@ export function TriaChatbot({
         }),
       });
       const data = await resp.json();
-      const actions: TriaChatAction[] = Array.isArray(data.actions)
+      const actions: ShelterChatAction[] = Array.isArray(data.actions)
         ? data.actions
         : [];
 
@@ -135,11 +139,11 @@ export function TriaChatbot({
       setMessages((prev) => [
         ...prev,
         {
-          id: `a-${Date.now()}`,
+          id: `sa-${Date.now()}`,
           role: "assistant",
           text:
             data.reply ||
-            "Verifique os estoques no mapa ou me informe quais itens chegaram.",
+            "Não consegui interpretar os itens. Informe a quantidade e o tipo ou envie outra foto.",
           appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
         },
       ]);
@@ -147,9 +151,9 @@ export function TriaChatbot({
       setMessages((prev) => [
         ...prev,
         {
-          id: `a-${Date.now()}`,
+          id: `sa-${Date.now()}`,
           role: "assistant",
-          text: "Erro de conexão com o assistente. Tente novamente em instantes.",
+          text: "Erro ao comunicar com o assistente do abrigo. Tente novamente.",
         },
       ]);
     } finally {
@@ -157,7 +161,25 @@ export function TriaChatbot({
     }
   }
 
-  const quickPrompts = QUICK_BY_PROFILE[profile];
+  function handlePickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 5 * 1024 * 1024
+    ) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setAttachedImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
   const activeShelter = shelters.find((s) => s.id === activeShelterId);
 
   return (
@@ -165,37 +187,33 @@ export function TriaChatbot({
       {!open ? (
         <button
           type="button"
-          className="tria-chat-fab"
+          className="tria-chat-fab shelter-fab"
           onClick={() => setOpen(true)}
-          aria-label="Abrir assistente TrIA"
+          aria-label="Abrir copiloto do abrigo"
         >
-          <MessageSquare size={18} />
-          <span>
-            {profile === "citizen" ? "Onde doar? Chat IA" : "Registrar via Chat IA"}
-          </span>
+          <Building2 size={18} />
+          <span>Estoque & Foto via Chat IA</span>
         </button>
       ) : (
         <section
           className="tria-chat-window"
           role="dialog"
-          aria-label="Assistente Inteligente TrIA"
+          aria-label="Copiloto do Abrigo TrIA"
         >
           <header className="tria-chat-header">
             <div>
               <strong>
                 <Sparkles size={15} />
-                Assistente TrIA
+                Copiloto do Abrigo
               </strong>
               <small>
-                {profile === "citizen"
-                  ? "Orientação de doações e hubs"
-                  : `Operando em ${activeShelter?.name || "Abrigo"}`}
+                {activeShelter?.name || "Abrigo"} · Texto ou Foto
               </small>
             </div>
             <button
               type="button"
               className="icon-button"
-              aria-label="Fechar chat"
+              aria-label="Fechar chat do abrigo"
               onClick={() => setOpen(false)}
             >
               <X size={17} />
@@ -205,6 +223,13 @@ export function TriaChatbot({
           <div className="tria-chat-messages" ref={listRef}>
             {messages.map((m) => (
               <div key={m.id} className={`tria-chat-bubble ${m.role}`}>
+                {m.imagePreview && (
+                  <img
+                    src={m.imagePreview}
+                    alt="Foto enviada pelo abrigo"
+                    className="tria-chat-bubble-img"
+                  />
+                )}
                 <p>{m.text}</p>
                 {m.appliedLabels && (
                   <div className="tria-chat-applied">
@@ -222,14 +247,14 @@ export function TriaChatbot({
               <div className="tria-chat-bubble assistant">
                 <span className="tria-chat-typing">
                   <Loader2 size={14} className="spin-icon" />
-                  Consultando rede TrIA...
+                  Processando entrada no estoque...
                 </span>
               </div>
             )}
           </div>
 
           <div className="tria-chat-quick">
-            {quickPrompts.map((qp) => (
+            {SHELTER_PROMPTS.map((qp) => (
               <button
                 key={qp}
                 type="button"
@@ -241,6 +266,20 @@ export function TriaChatbot({
             ))}
           </div>
 
+          {attachedImage && (
+            <div className="tria-chat-attachment-bar">
+              <img src={attachedImage} alt="Prévia da foto anexada" />
+              <span>Foto pronta para envio com IA</span>
+              <button
+                type="button"
+                aria-label="Remover foto anexada"
+                onClick={() => setAttachedImage(null)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <form
             className="tria-chat-form"
             onSubmit={(e) => {
@@ -249,18 +288,36 @@ export function TriaChatbot({
             }}
           >
             <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              ref={fileRef}
+              hidden
+              onChange={handlePickPhoto}
+            />
+            <button
+              type="button"
+              className="tria-chat-photo-btn"
+              aria-label="Anexar ou tirar foto para o estoque"
+              title="Enviar ou tirar foto de doação"
+              onClick={() => fileRef.current?.click()}
+            >
+              <ImagePlus size={16} />
+            </button>
+            <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={
-                profile === "citizen"
-                  ? "Ex: Tenho roupas e água, onde levo?"
-                  : "Ex: Chegaram 20 casacos e 30L de água"
+                attachedImage
+                  ? "Opcional: adicione nota sobre a foto..."
+                  : "Digite itens ou envie foto..."
               }
             />
             <button
               type="submit"
-              disabled={loading || !input.trim()}
+              className="tria-chat-send-btn"
+              disabled={loading || (!input.trim() && !attachedImage)}
               aria-label="Enviar mensagem"
             >
               <Send size={15} />

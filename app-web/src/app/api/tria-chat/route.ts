@@ -10,7 +10,6 @@ import {
 import type { CollectionHub } from "@/lib/collection-hubs";
 
 const MODELS_CASCADE = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"];
-
 const VALID_CATEGORIES = new Set<string>(categories.map((c) => c.id));
 
 type ChatAction =
@@ -27,18 +26,32 @@ type ChatAction =
 
 function buildLocalFallback(params: {
   message: string;
+  hasImage: boolean;
   profile: "citizen" | "volunteer" | "manager";
   activeShelterId: string;
   shelters: Shelter[];
   hubs: CollectionHub[];
 }): { reply: string; actions: ChatAction[] } {
-  const { message, profile, activeShelterId, shelters, hubs } = params;
+  const { message, hasImage, profile, activeShelterId, shelters, hubs } = params;
   const q = message.toLowerCase();
   const activeShelter =
     shelters.find((s) => s.id === activeShelterId) || shelters[0];
 
   if (profile !== "citizen") {
-    // Tenta extrair números + categorias para cadastro rápido offline/fallback
+    if (hasImage && !message.trim()) {
+      return {
+        reply: `Foto recebida em ${activeShelter.name}! Registrei +1 unidade de roupas/agasalhos no estoque (modo contingência local).`,
+        actions: [
+          {
+            type: "register_entry",
+            shelterId: activeShelter.id,
+            category: "roupas",
+            quantity: 1,
+          },
+        ],
+      };
+    }
+
     const actions: ChatAction[] = [];
     const catMatchers: Array<{ id: CategoryId; regex: RegExp }> = [
       { id: "roupas", regex: /(\d+)\s*(?:peças?|pecas?|roupas?|casacos?|agasalhos?)/i },
@@ -50,6 +63,7 @@ function buildLocalFallback(params: {
     ];
 
     if (
+      hasImage ||
       q.includes("registr") ||
       q.includes("cheg") ||
       q.includes("adicion") ||
@@ -79,15 +93,13 @@ function buildLocalFallback(params: {
         })
         .join(", ");
       return {
-        reply: `Registrado no estoque de ${activeShelter.name}: ${summary}. A dashboard e os indicadores já foram atualizados.`,
+        reply: `Registrado no estoque de ${activeShelter.name}: ${summary}. A dashboard já foi atualizada.`,
         actions,
       };
     }
 
     const crit = categories
-      .filter(
-        (c) => stockStatus(c.id, activeShelter.stock[c.id]) === "critical",
-      )
+      .filter((c) => stockStatus(c.id, activeShelter.stock[c.id]) === "critical")
       .map((c) => `${c.label} (${activeShelter.stock[c.id]}/${targets[c.id]} ${c.unit})`);
 
     return {
@@ -95,12 +107,11 @@ function buildLocalFallback(params: {
         crit.length > 0
           ? `itens críticos agora em ${crit.join(", ")}.`
           : "sem rupturas críticas no momento."
-      } Você pode me pedir para registrar entradas (ex: "Chegaram 25 roupas e 40 litros de água").`,
+      } Você pode enviar uma foto ou escrever o que chegou (ex: "Chegaram 25 roupas e 40 litros de água").`,
       actions: [],
     };
   }
 
-  // Modo cidadão doador
   const hubsAcceptingClothes = hubs.filter((h) => h.accepting.includes("roupas"));
   const criticalShelters = shelters
     .map((s) => ({
@@ -127,7 +138,7 @@ function buildLocalFallback(params: {
       .join(" e ");
 
     return {
-      reply: `Para doar roupas, recomendamos levar primeiro a um Hub de Coleta para triagem organizada: ${hubNames}. (Atenção: o Hub Norte está com roupas pausado.) Se preferir, você também pode entregar direto nos abrigos com falta crítica: ${directShelters || "Albergue Dias da Cruz e Sesi-RS"}.`,
+      reply: `Para doar roupas, sugerimos levar primeiro a um Hub de Coleta para triagem organizada: ${hubNames}. (Atenção: o Hub Norte está com roupas pausado.) Se preferir, também pode entregar direto nos abrigos com falta crítica: ${directShelters || "Albergue Dias da Cruz e Sesi-RS"}.`,
       actions: [],
     };
   }
@@ -147,6 +158,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
       message?: string;
+      imageBase64?: string;
       history?: Array<{ role: "user" | "assistant"; text: string }>;
       profile?: "citizen" | "volunteer" | "manager";
       activeShelterId?: string;
@@ -156,6 +168,7 @@ export async function POST(req: NextRequest) {
     };
 
     const message = body?.message?.trim() || "";
+    const imageBase64 = body?.imageBase64;
     const profile = body?.profile || "citizen";
     const shelters = Array.isArray(body?.shelters) ? body.shelters : [];
     const hubs = Array.isArray(body?.hubs) ? body.hubs : [];
@@ -163,7 +176,7 @@ export async function POST(req: NextRequest) {
     const activeShelterId = body?.activeShelterId || shelters[0]?.id || "sesi";
     const history = Array.isArray(body?.history) ? body.history.slice(-6) : [];
 
-    if (!message || shelters.length === 0) {
+    if ((!message && !imageBase64) || shelters.length === 0) {
       return NextResponse.json(
         { reply: "Como posso ajudar você hoje?", actions: [] },
         { status: 200 },
@@ -175,6 +188,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ...buildLocalFallback({
           message,
+          hasImage: Boolean(imageBase64),
           profile,
           activeShelterId,
           shelters,
@@ -217,8 +231,16 @@ export async function POST(req: NextRequest) {
     const activeShelterName =
       shelters.find((s) => s.id === activeShelterId)?.name || activeShelterId;
 
+    const effectiveMessage =
+      message ||
+      "Analise esta foto de doação enviada pela equipe do abrigo, identifique o item e quantidade aproximada e registre a entrada no estoque.";
+
     const systemPrompt = `Você é o Assistente Inteligente da plataforma TrIA em Porto Alegre.
-Perfil ativo do usuário na interface: "${profile}" (citizen = Doador; volunteer = Voluntário na triagem; manager = Organização do Abrigo).
+Perfil ativo: "${profile}" (${
+      profile === "citizen"
+        ? "Cidadão Doador"
+        : "Organização / Voluntário do Abrigo"
+    }).
 Abrigo selecionado no painel agora: id="${activeShelterId}" (${activeShelterName}).
 
 ESTADO ATUAL DOS ABRIGOS:
@@ -233,21 +255,23 @@ ${alertsSummary || "Nenhum."}
 HISTÓRICO RECENTE:
 ${historyText || "Início da conversa."}
 
-MENSAGEM ATUAL DO USUÁRIO: "${message}"
+MENSAGEM ATUAL DO USUÁRIO: "${effectiveMessage}"
+${imageBase64 ? "OBS: O usuário anexou uma FOTO junto com esta mensagem." : ""}
 
 REGRAS OBRIGATÓRIAS:
 1. Responda sempre em português claro, curto e direto (sem travessão "—").
 2. SE o perfil for "citizen" (Doador):
    - Diga onde precisa de mais doações, o que ele pode doar e onde levar.
-   - SEMPRE sugira que DOAÇÕES DE ROUPAS sejam levadas preferencialmente para um Hub de Coleta que esteja aceitando roupas (ex: Hub Centro, Hub Leste ou Hub Sul; avise que o Hub Norte está com roupas pausado), explicando que isso organiza a triagem, mas deixe claro que ele também pode levar direto ao abrigo se preferir.
+   - SEMPRE sugira que DOAÇÕES DE ROUPAS sejam levadas preferencialmente para um Hub de Coleta que esteja aceitando roupas (ex: Hub Centro, Hub Leste ou Hub Sul; avise que o Hub Norte está com roupas pausado), explicando que facilita a triagem, mas deixe claro que ele também pode levar direto ao abrigo se preferir.
    - Nunca registre entradas no estoque no modo "citizen" ("actions": []).
-3. SE o perfil for "volunteer" ou "manager" (Voluntário ou Abrigo):
-   - Ajude a analisar estoques, organizar prioridades e responder dúvidas operacionais.
-   - SE o usuário pedir para registrar, dar entrada, adicionar ou informar que chegaram itens no estoque (ex: "chegaram 20 casacos e 50L de água", "registra 10 cobertores no Demhab"), retorne os lançamentos em "actions" com:
+3. SE o perfil for "volunteer" ou "manager" (Abrigo / Admin / Voluntário):
+   - Ajude a analisar estoques, organizar prioridades e registrar doações.
+   - SE o usuário enviou uma FOTO de doação (e a imagem mostrar itens válidos) OU pediu para registrar/adicionar itens por texto (ex: "chegaram 20 casacos e 50L de água", "registra 10 cobertores no Demhab"), retorne os lançamentos em "actions" com:
      {"type": "register_entry", "shelterId": "<id valido do abrigo, padrao: ${activeShelterId}>", "category": "roupas"|"agua"|"alimentos"|"higiene"|"colchoes_cama"|"racao_pet", "quantity": <inteiro positivo>}
-   - Se o usuário pedir para adicionar peças descartadas/ruins para reciclagem têxtil, use:
+   - Se uma foto enviada NÃO mostrar nenhum item identificável (escura/parede vazia), não registre nada ("actions": []) e peça uma foto mais nítida.
+   - Se pedir para adicionar peças descartadas/ruins para reciclagem têxtil, use:
      {"type": "register_recycle", "quantity": <inteiro positivo>}
-   - Confirme na resposta ("reply") exatamente o que foi registrado no estoque.
+   - Confirme na resposta ("reply") exatamente o que você identificou e registrou no estoque.
 
 Retorne APENAS um JSON válido com estas 2 chaves:
 {
@@ -255,10 +279,28 @@ Retorne APENAS um JSON válido com estas 2 chaves:
   "actions": []
 }`;
 
+    const parts: Array<Record<string, unknown>> = [{ text: systemPrompt }];
+    if (imageBase64 && typeof imageBase64 === "string") {
+      const mimeMatch = imageBase64.match(
+        /^data:(image\/[a-zA-Z0-9.+-]+);base64,/,
+      );
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const cleanBase64 = imageBase64.replace(
+        /^data:image\/[a-zA-Z0-9.+-]+;base64,/,
+        "",
+      );
+      parts.push({
+        inlineData: {
+          mimeType,
+          data: cleanBase64,
+        },
+      });
+    }
+
     for (const model of MODELS_CASCADE) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 9000);
+        const timeout = setTimeout(() => controller.abort(), 18000);
 
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
           apiKey,
@@ -269,7 +311,7 @@ Retorne APENAS um JSON válido com estas 2 chaves:
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            contents: [{ parts: [{ text: systemPrompt }] }],
+            contents: [{ parts }],
             generationConfig: {
               responseMimeType: "application/json",
               temperature: 0.25,
@@ -331,6 +373,7 @@ Retorne APENAS um JSON válido com estas 2 chaves:
     return NextResponse.json({
       ...buildLocalFallback({
         message,
+        hasImage: Boolean(imageBase64),
         profile,
         activeShelterId,
         shelters,

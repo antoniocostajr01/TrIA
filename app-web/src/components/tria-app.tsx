@@ -5,7 +5,8 @@ import { ShelterNeedsExplorer } from "./shelter-needs-explorer";
 import { Brand } from "./brand";
 import { TransferPanel, type Transfer } from "./transfer-panel";
 import { ManagerOverview } from "./manager-overview";
-import { TriaChatbot, type TriaChatAction } from "./tria-chatbot";
+import { DonorChatbot } from "./donor-chatbot";
+import { ShelterChatbot, type ShelterChatAction } from "./shelter-chatbot";
 import {
   Heart,
   MapPin,
@@ -373,7 +374,7 @@ export default function TriaApp() {
     setQuantity("1");
     setToast("Entrada registrada no estoque.");
   }
-  function handleChatActions(actions: TriaChatAction[]) {
+  function handleChatActions(actions: ShelterChatAction[]) {
     const newEntries: Entry[] = [];
     let recycledAdded = 0;
 
@@ -557,7 +558,7 @@ export default function TriaApp() {
             </h1>
             <p>
               {profile === "citizen"
-                ? "Encontre um hub de coleta para levar os itens que você quer doar."
+                ? "Encontre um hub de coleta (recomendado para roupas) ou leve direto a um dos abrigos da cidade."
                 : profile === "volunteer"
                   ? "Receba doações, veja os pedidos da rede e distribua para quem precisa."
                   : "Acompanhe necessidades, organize o estoque e conecte sua rede."}
@@ -565,7 +566,7 @@ export default function TriaApp() {
           </div>
         </section>
         {profile === "citizen" ? (
-          <CollectionHubExplorer />
+          <CollectionHubExplorer shelters={shelters} />
         ) : (
           <>
             <div className="workspace-toolbar">
@@ -1098,13 +1099,17 @@ export default function TriaApp() {
           </button>
         ))}
       </nav>
-      <TriaChatbot
-        profile={profile}
-        activeShelterId={shelterId}
-        shelters={shelters}
-        alerts={alerts}
-        onApplyActions={handleChatActions}
-      />
+      {profile === "citizen" ? (
+        <DonorChatbot shelters={shelters} alerts={alerts} />
+      ) : (
+        <ShelterChatbot
+          profile={profile}
+          activeShelterId={shelterId}
+          shelters={shelters}
+          alerts={alerts}
+          onApplyActions={handleChatActions}
+        />
+      )}
       <div className="toast-container" role="status" aria-live="polite">
         {toast && (
           <div className="toast">
