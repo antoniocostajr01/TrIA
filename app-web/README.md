@@ -22,7 +22,7 @@ npm start
 
 ## O que funciona
 
-- **Cidadão:** mapa de Porto Alegre, seleção de abrigo, busca por nome/bairro e seis filtros de doação. A categoria determina o status exibido: urgente, recebendo ou coleta suspensa.
+- **Cidadão:** mapa de quatro hubs fictícios de coleta, busca por nome/região e seis filtros de doação. A seleção mostra endereço, horário, categorias aceitas e itens suspensos. Os hubs são pontos de recebimento e não são os abrigos de destino.
 - **Voluntário:** seleção de abrigo, registro manual com quantidade inteira de 1 a 10.000 e unidade por categoria, histórico de entradas, foto de referência local (JPG/PNG/WebP, até 5 MB) e contador de peças para reciclagem da rede. A foto não é analisada nem enviada.
 - **Gestor:** estoque derivado das entradas locais, mural com publicação de pedidos e manifestação demonstrativa de interesse. Publica pedidos e registra remessas simuladas, atualizando os estoques de origem e destino. Não envia mensagens externas nem executa transporte físico.
 - **Geral:** navegação por perfil no topo em desktop e na barra inferior em mobile, ajuda e restauração da demo.
@@ -63,3 +63,11 @@ O perfil **Hub de triagem** registra entradas, mantém histórico, separa peças
 `TransferPanel` cruza excedentes e faltas por categoria com regras determinísticas, sem afirmar uso de IA. Uma remessa reduz a quantidade na origem e acrescenta a mesma quantidade ao destino. O histórico é persistido junto às entradas, alertas e reciclagem. As sugestões desaparecem quando o déficit é atendido. A movimentação é apenas do cenário local.
 
 Para ensaios isolados, `/?demo=videos&profile=citizen`, `/?demo=videos&profile=manager` e `/?demo=videos&profile=volunteer` usam a chave `tria-video-demo-v1`, separada do armazenamento normal. O hub começa selecionado no Demhab; as demais perspectivas começam no Sesi. Links rápidos navegam entre as seções de cada perfil. A restauração da demo também limpa seu histórico de remessas.
+
+## Separação entre pontos de coleta e abrigos de destino
+
+`src/lib/collection-hubs.ts` define quatro hubs fictícios independentes dos abrigos: Centro, Norte, Leste e Sul. Endereços, horários e regras de recebimento são conteúdo de apresentação, sem serviços verificados. O filtro do doador indica se cada hub recebe a categoria ou está com a coleta suspensa. Os cartões e pinos selecionam o mesmo ponto; a busca restringe mapa e lista.
+
+No perfil Hub de triagem, `ShelterNeedsExplorer` mostra os cinco abrigos com o estoque reativo existente. Cada cartão distingue **necessidades de estoque** (faltas críticas calculadas até a referência de cada categoria) dos **pedidos publicados** pelos gestores. O mapa filtra por categoria e indica o número de categorias críticas por pino. Selecionar um pino destaca e prioriza o cartão correspondente; o popup informa as quantidades em falta e os pedidos. Entradas e transferências atualizam as faltas; os alertas seguem como registros independentes do mural.
+
+`LocationMap`, em `shelter-map.tsx`, é compartilhado pelos dois exploradores com tipos de pino, legendas e conteúdo próprios. Não há persistência dos pontos fictícios nem integração externa de cadastro; o mapa usa tiles OpenStreetMap.

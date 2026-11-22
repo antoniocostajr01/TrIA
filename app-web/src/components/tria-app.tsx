@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
+import { CollectionHubExplorer } from "./collection-hub-explorer";
+import { ShelterNeedsExplorer } from "./shelter-needs-explorer";
 import { Brand } from "./brand";
 import { TransferPanel, type Transfer } from "./transfer-panel";
 import { ManagerOverview } from "./manager-overview";
@@ -10,7 +11,6 @@ import {
   ScanLine,
   LayoutDashboard,
   ChevronDown,
-  Search,
   Plus,
   Check,
   X,
@@ -21,32 +21,20 @@ import {
   HandHeart,
   ShieldCheck,
   Building2,
-  SlidersHorizontal,
   CheckCircle2,
   Clock3,
-  Sprout,
 } from "lucide-react";
 import {
   categories,
   shelters as seedShelters,
   targets,
   stockStatus,
-  statusLabels,
   initialAlerts,
   type CategoryId,
   type Entry,
   type Alert,
   type Shelter,
 } from "@/lib/demo-data";
-const ShelterMap = dynamic(() => import("./shelter-map"), {
-  ssr: false,
-  loading: () => (
-    <div className="map-loading">
-      <MapPin size={28} />
-      <p>Preparando o mapa…</p>
-    </div>
-  ),
-});
 type Profile = "citizen" | "volunteer" | "manager";
 const profiles = [
   { id: "citizen", label: "Quero doar", mobile: "Doar", icon: MapPin },
@@ -67,9 +55,6 @@ const storageKey = "tria-ui-demo-v1";
 export default function TriaApp() {
   const [profile, setProfile] = useState<Profile>("citizen");
   const [managerSection, setManagerSection] = useState("visao-geral");
-  const [category, setCategory] = useState<CategoryId | "all">("all");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
   const [shelterId, setShelterId] = useState("sesi");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
@@ -206,16 +191,6 @@ export default function TriaApp() {
     ) as Shelter["stock"],
   }));
   const current = shelters.find((s) => s.id === shelterId)!;
-  const filtered = shelters.filter((s) =>
-    `${s.name} ${s.district}`
-      .toLocaleLowerCase("pt-BR")
-      .includes(query.toLocaleLowerCase("pt-BR")),
-  );
-  const urgent = shelters.filter((s) =>
-    category === "all"
-      ? categories.some((c) => stockStatus(c.id, s.stock[c.id]) === "critical")
-      : stockStatus(category, s.stock[category]) === "critical",
-  ).length;
   const formInfo = categories.find((c) => c.id === formCategory)!;
   function register(event: React.FormEvent) {
     event.preventDefault();
@@ -232,7 +207,7 @@ export default function TriaApp() {
       ...prev,
     ]);
     setQuantity("1");
-    setToast("Entrada registrada no estoque de demonstração.");
+    setToast("Entrada registrada no estoque.");
   }
   function transfer(
     fromId: string,
@@ -259,16 +234,14 @@ export default function TriaApp() {
       },
       ...prev,
     ]);
-    setToast(
-      "Remessa simulada registrada. Os dois estoques foram atualizados.",
-    );
+    setToast("Remessa registrada. Os dois estoques foram atualizados.");
   }
   function reset() {
     setEntries([]);
     setAlerts(initialAlerts);
     setRecycled(0);
     setTransfers([]);
-    setToast("Cenário de demonstração restaurado.");
+    setToast("Dados restaurados.");
   }
   return (
     <div className={`app-shell profile-${profile}`}>
@@ -291,11 +264,10 @@ export default function TriaApp() {
             ))}
           </nav>
           <div className="header-right">
-            <span className="demo-tag">DADOS SIMULADOS</span>
             <button
               className="icon-button"
               ref={helpButton}
-              aria-label="Sobre esta demonstração"
+              aria-label="Sobre o TrIA"
               onClick={() => setHelp(true)}
             >
               <CircleHelp size={21} />
@@ -311,7 +283,7 @@ export default function TriaApp() {
           <div className="sidebar-shelter">
             <span>ABRIGO</span>
             <strong>{current.name}</strong>
-            <small>Porto Alegre · Cenário simulado</small>
+            <small>Porto Alegre</small>
           </div>
           <nav aria-label="Navegação do painel">
             <a
@@ -392,209 +364,15 @@ export default function TriaApp() {
             </h1>
             <p>
               {profile === "citizen"
-                ? "Encontre um abrigo e descubra o que faz a diferença agora."
+                ? "Encontre um hub de coleta para levar os itens que você quer doar."
                 : profile === "volunteer"
-                  ? "Receba doações, organize os itens e distribua para quem precisa."
+                  ? "Receba doações, veja os pedidos da rede e distribua para quem precisa."
                   : "Acompanhe necessidades, organize o estoque e conecte sua rede."}
             </p>
           </div>
-          <div className="heading-art" aria-hidden="true">
-            <HandHeart size={46} strokeWidth={1.25} />
-            <span>
-              Juntos, a gente
-              <br />
-              acolhe melhor.
-            </span>
-          </div>
         </section>
         {profile === "citizen" ? (
-          <>
-            <section className="stats" aria-label="Resumo do cenário simulado">
-              <Stat icon={Building2} value="05" label="abrigos na rede" />
-              <Stat
-                icon={Heart}
-                value={String(urgent).padStart(2, "0")}
-                label={
-                  category === "all"
-                    ? "com necessidades urgentes"
-                    : "precisando deste item"
-                }
-              />
-              <Stat
-                icon={HandHeart}
-                value="06"
-                label="formas de fazer a diferença"
-              />
-            </section>
-            <section className="explore-section">
-              <div className="section-heading">
-                <div>
-                  <h2>O que você quer doar?</h2>
-                  <p>Escolha um item para encontrar quem mais precisa.</p>
-                </div>
-                <span className="quiet-label">Necessidades simuladas</span>
-              </div>
-              <div
-                className="category-filters"
-                aria-label="Filtrar por tipo de doação"
-              >
-                <button
-                  className={`filter-chip ${category === "all" ? "active" : ""}`}
-                  onClick={() => setCategory("all")}
-                  aria-pressed={category === "all"}
-                >
-                  <SlidersHorizontal size={17} />
-                  Todos os itens
-                </button>
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    className={`filter-chip ${category === c.id ? "active" : ""}`}
-                    onClick={() => setCategory(c.id)}
-                    aria-pressed={category === c.id}
-                  >
-                    <c.icon size={17} />
-                    {c.short}
-                  </button>
-                ))}
-              </div>
-              <div className="explore-grid">
-                <div className="shelter-list">
-                  <div className="search-field">
-                    <Search size={18} />
-                    <input
-                      aria-label="Buscar abrigo ou bairro"
-                      placeholder="Buscar abrigo ou bairro"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                    {query && (
-                      <button
-                        className="icon-button"
-                        aria-label="Limpar busca"
-                        onClick={() => setQuery("")}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="list-caption">
-                    <span>{filtered.length} abrigos encontrados</span>
-                    <span>Porto Alegre</span>
-                  </div>
-                  <div className="shelter-scroll">
-                    {filtered.map((s) => (
-                      <ShelterCard
-                        key={s.id}
-                        shelter={s}
-                        category={category}
-                        selected={selected === s.id}
-                        onClick={() => {
-                          setSelected(s.id);
-                          if (window.innerWidth <= 760)
-                            setTimeout(
-                              () =>
-                                document
-                                  .getElementById("necessidades")
-                                  ?.scrollIntoView({ behavior: "smooth" }),
-                              150,
-                            );
-                        }}
-                      />
-                    ))}
-                    {!filtered.length && (
-                      <div className="empty-state">
-                        <Search />
-                        <h3>Nenhum abrigo encontrado</h3>
-                        <p>Tente outro nome ou bairro.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="map-panel">
-                  <ShelterMap
-                    shelters={filtered}
-                    category={category}
-                    selected={selected}
-                    onSelect={setSelected}
-                  />
-                  <div className="map-title">
-                    <MapPin size={16} />
-                    <span>Uma cidade. Uma rede de apoio.</span>
-                  </div>
-                  <div className="map-legend">
-                    <span>
-                      <i className="critical" />
-                      Urgente
-                    </span>
-                    <span>
-                      <i className="stable" />
-                      Recebendo
-                    </span>
-                    <span>
-                      <i className="surplus" />
-                      Suspensa
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </section>
-            {selected && (
-              <section
-                className="donor-detail"
-                id="necessidades"
-                aria-label="Orientações para a doação"
-              >
-                <div className="donor-detail-heading">
-                  <span className="eyebrow">DOAÇÃO CERTA</span>
-                  <h2>
-                    {shelters.find((s) => s.id === selected)?.name} precisa de:
-                  </h2>
-                  <p>Necessidades do cenário de demonstração.</p>
-                </div>
-                <div className="donor-need-list">
-                  {categories
-                    .filter(
-                      (c) =>
-                        stockStatus(
-                          c.id,
-                          shelters.find((s) => s.id === selected)!.stock[c.id],
-                        ) === "critical",
-                    )
-                    .map((c) => (
-                      <div key={c.id}>
-                        <span className="donor-need-icon">
-                          <c.icon size={23} />
-                        </span>
-                        <strong>{c.label}</strong>
-                        <span className="status-badge critical">URGENTE</span>
-                      </div>
-                    ))}
-                </div>
-                <div className="dont-send">
-                  <h3>Por favor, não envie</h3>
-                  <p>
-                    Roupas rasgadas, sujas, com mofo ou mau cheiro. Separe
-                    apenas peças em condições de uso.
-                  </p>
-                  <small>Orientação ilustrativa para esta demonstração.</small>
-                </div>
-              </section>
-            )}
-            <div className="care-note">
-              <span className="care-icon">
-                <Heart size={21} />
-              </span>
-              <div>
-                <strong>Doar também é ouvir.</strong>
-                <p>
-                  Confira a necessidade de cada abrigo antes de separar sua
-                  doação.
-                </p>
-              </div>
-              <Sprout className="note-sprout" size={30} />
-            </div>
-          </>
+          <CollectionHubExplorer />
         ) : (
           <>
             <div className="workspace-toolbar">
@@ -616,13 +394,11 @@ export default function TriaApp() {
                   <ChevronDown size={16} />
                 </div>
               </div>
-              <span className="simulation-label">
-                Dados locais · Cenário simulado
-              </span>
             </div>
             <nav className="section-shortcuts" aria-label="Seções deste perfil">
               {(profile === "volunteer"
                 ? [
+                    ["mapa-abrigos", "Mapa de abrigos"],
                     ["registrar", "Registrar"],
                     ["entradas", "Entradas"],
                     ["reciclagem", "Reciclagem"],
@@ -642,6 +418,7 @@ export default function TriaApp() {
             </nav>
             {profile === "volunteer" ? (
               <>
+                <ShelterNeedsExplorer shelters={shelters} alerts={alerts} />
                 <div className="work-grid">
                   <section className="panel triage-panel" id="registrar">
                     <div className="panel-heading">
@@ -857,7 +634,7 @@ export default function TriaApp() {
                           onClick={() => {
                             setRecycled((n) => n + 1);
                             setToast(
-                              "Uma peça adicionada ao lote demonstrativo.",
+                              "Uma peça adicionada ao lote de reciclagem.",
                             );
                           }}
                         >
@@ -885,7 +662,7 @@ export default function TriaApp() {
                 />
                 <div className="inventory-heading" id="estoque">
                   <h2>Estoque por categoria</h2>
-                  <p>Itens disponíveis no cenário de demonstração.</p>
+                  <p>Itens disponíveis no abrigo.</p>
                 </div>
                 <section
                   className="inventory-grid"
@@ -921,7 +698,7 @@ export default function TriaApp() {
                           />
                         </div>
                         <p>
-                          Referência da demo: {targets[c.id]} {c.unit}
+                          Referência de abastecimento: {targets[c.id]} {c.unit}
                         </p>
                       </article>
                     );
@@ -960,9 +737,7 @@ export default function TriaApp() {
                           ]);
                           setMessage("");
                           setAlertForm(false);
-                          setToast(
-                            "Alerta publicado no mural de demonstração.",
-                          );
+                          setToast("Alerta publicado no mural da rede.");
                         }}
                       >
                         <label htmlFor="alert-message">
@@ -1010,9 +785,7 @@ export default function TriaApp() {
                                       : item,
                                   ),
                                 );
-                                setToast(
-                                  "Interesse registrado localmente. Nenhuma mensagem foi enviada.",
-                                );
+                                setToast("Interesse em apoiar registrado.");
                               }}
                             >
                               {a.supported ? (
@@ -1047,8 +820,8 @@ export default function TriaApp() {
             <span>Do seu abrigo, para o abrigo certo.</span>
           </div>
           <div>
-            <span>Protótipo CEUE · Dados simulados</span>
-            <button onClick={reset}>Restaurar demo</button>
+            <span>TrIA · Rede de apoio</span>
+            <button onClick={reset}>Restaurar dados</button>
           </div>
         </footer>
       </main>
@@ -1102,105 +875,24 @@ export default function TriaApp() {
               <X />
             </button>
             <Brand />
-            <h2 id="help-title">Uma prévia do TrIA.</h2>
+            <h2 id="help-title">Sobre o TrIA</h2>
             <p>
-              Explore os três perfis, registre doações manualmente e acompanhe o
-              estoque. As alterações ficam apenas neste navegador.
+              Encontre onde doar, registre a chegada de itens e acompanhe as
+              necessidades dos abrigos.
             </p>
             <p>
-              Todos os estoques e pedidos são simulados. Os locais não
-              representam uma rede de atendimento confirmada. Não utilize esta
-              demonstração para decisões de doação reais.
+              Conecte excedentes a quem precisa, organize a triagem e dê um novo
+              destino aos têxteis separados para reciclagem.
             </p>
             <button
               className="button primary full"
               onClick={() => setHelp(false)}
             >
-              Explorar a demonstração
+              Continuar
             </button>
           </section>
         </div>
       )}
     </div>
-  );
-}
-function Stat({
-  icon: Icon,
-  value,
-  label,
-}: {
-  icon: typeof Heart;
-  value: string;
-  label: string;
-}) {
-  return (
-    <article className="stat-card">
-      <span className="stat-icon">
-        <Icon size={22} strokeWidth={1.6} />
-      </span>
-      <div>
-        <strong>{value}</strong>
-        <span>{label}</span>
-      </div>
-    </article>
-  );
-}
-function ShelterCard({
-  shelter,
-  category,
-  selected,
-  onClick,
-}: {
-  shelter: Shelter;
-  category: CategoryId | "all";
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const needs = categories.filter(
-    (c) => stockStatus(c.id, shelter.stock[c.id]) === "critical",
-  );
-  const status =
-    category === "all"
-      ? needs.length
-        ? "critical"
-        : "stable"
-      : stockStatus(category, shelter.stock[category]);
-  return (
-    <button
-      className={`shelter-card ${selected ? "selected" : ""}`}
-      onClick={onClick}
-      aria-pressed={selected}
-    >
-      <div className="shelter-card-top">
-        <span className="shelter-avatar">
-          <Building2 size={20} />
-        </span>
-        <span className={`status-badge ${status}`}>{statusLabels[status]}</span>
-      </div>
-      <h3>{shelter.name}</h3>
-      <p>{shelter.district}</p>
-      <div className="need-tags">
-        {(category === "all"
-          ? needs
-          : categories.filter((c) => c.id === category)
-        )
-          .slice(0, 3)
-          .map((c) => (
-            <span key={c.id}>
-              <c.icon size={13} />
-              {c.short}
-            </span>
-          ))}
-        {category === "all" && !needs.length && (
-          <span>Suprimentos estáveis</span>
-        )}
-      </div>
-      {selected && (
-        <div className="selected-caption">
-          <Check size={13} />
-          Selecionado no mapa
-        </div>
-      )}
-    </button>
   );
 }

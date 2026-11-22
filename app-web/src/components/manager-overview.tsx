@@ -24,11 +24,11 @@ export function ManagerOverview({
     [
       "Registros neste abrigo",
       localEntries.length,
-      "Entradas manuais neste navegador",
+      "Entradas registradas neste abrigo",
     ],
-    ["Categorias em falta", needs.length, "Prioridades no cenário atual"],
+    ["Categorias em falta", needs.length, "Prioridades do abrigo"],
     ["Têxteis para reciclagem", recycled, "Peças no lote de toda a rede"],
-    ["Alertas na rede", alertCount, "Pedidos no mural demonstrativo"],
+    ["Alertas na rede", alertCount, "Pedidos no mural da rede"],
   ];
   return (
     <section className="manager-overview" id="visao-geral">
@@ -53,7 +53,7 @@ export function ManagerOverview({
             aria-label={categories
               .map(
                 (c) =>
-                  `${c.label}: ${Math.round((shelter.stock[c.id] / targets[c.id]) * 100)}% da referência demonstrativa`,
+                  `${c.label}: ${Math.round((shelter.stock[c.id] / targets[c.id]) * 100)}% da referência de abastecimento`,
               )
               .join(". ")}
           >
@@ -78,8 +78,8 @@ export function ManagerOverview({
             })}
           </div>
           <p className="chart-caption">
-            Referências ilustrativas por categoria. Barras limitadas a 200%. As
-            unidades não são somadas.
+            Cobertura por categoria em relação à referência de abastecimento.
+            Barras limitadas a 200%.
           </p>
         </section>
         <section className="panel priority-panel">
@@ -107,7 +107,7 @@ export function ManagerOverview({
               ))
             ) : (
               <p className="no-priorities">
-                Nenhuma categoria em nível crítico neste cenário.
+                Nenhuma categoria em nível crítico.
               </p>
             )}
           </div>

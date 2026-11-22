@@ -79,9 +79,7 @@ export function TransferPanel({
           <p>Excedentes de um local ajudam onde falta.</p>
         </div>
       </div>
-      <span className="transfer-simulation">
-        Sugestões por regras · Logística simulada
-      </span>
+
       <div className="transfer-suggestions">
         {suggestions.map(({ from, to, c, quantity }) => (
           <article
@@ -105,9 +103,7 @@ export function TransferPanel({
               onClick={() => onTransfer(from.id, to.id, c.id, quantity)}
             >
               <PackageCheck size={19} />
-              {mode === "send"
-                ? "Enviar remessa simulada"
-                : "Receber remessa simulada"}
+              {mode === "send" ? "Enviar remessa" : "Receber remessa"}
             </button>
           </article>
         ))}
@@ -115,9 +111,7 @@ export function TransferPanel({
           <div className="empty-state">
             <CheckCircle2 />
             <h3>Sem remessas pendentes</h3>
-            <p>
-              Os estoques deste cenário estão equilibrados para redistribuição.
-            </p>
+            <p>Os estoques estão equilibrados para redistribuição.</p>
           </div>
         )}
       </div>
