@@ -8,7 +8,7 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Status } from "@/lib/demo-data";
 import "leaflet/dist/leaflet.css";
 export type MapLocation = {
@@ -71,8 +71,10 @@ export default function LocationMap({
   kind?: "hubs" | "shelters";
 }) {
   const focus = locations.find((l) => l.id === selected);
+  const [mapKey] = useState(() => `poa-map-${Math.random().toString(36).slice(2)}`);
   return (
     <MapContainer
+      key={mapKey}
       center={kind === "hubs" ? [-30.045, -51.19] : [-30.026, -51.165]}
       zoom={12}
       scrollWheelZoom={false}

@@ -14,7 +14,10 @@ import {
   Plus,
   Check,
   X,
+  Camera,
+  CameraOff,
   ImagePlus,
+  Loader2,
   Recycle,
   Package,
   CircleHelp,
@@ -67,9 +70,24 @@ export default function TriaApp() {
   const [formCategory, setFormCategory] = useState<CategoryId>("roupas");
   const [quantity, setQuantity] = useState("1");
   const [photo, setPhoto] = useState<string | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [analyzingPhoto, setAnalyzingPhoto] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    item: string;
+    confidence: number;
+    observation: string;
+    provider: string;
+    warning?: string;
+  } | null>(null);
   const [alertForm, setAlertForm] = useState(false);
   const [message, setMessage] = useState("");
   const upload = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const prevFrameRef = useRef<Uint8ClampedArray | null>(null);
+  const stableTicksRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
   const helpDialog = useRef<HTMLElement>(null);
   const helpButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -192,6 +210,151 @@ export default function TriaApp() {
   }));
   const current = shelters.find((s) => s.id === shelterId)!;
   const formInfo = categories.find((c) => c.id === formCategory)!;
+
+  function stopCamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraOn(false);
+    prevFrameRef.current = null;
+    stableTicksRef.current = 0;
+  }
+
+  async function startCamera() {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setToast("Câmera ao vivo indisponível neste navegador. Use 'Tirar / enviar foto'.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        await videoRef.current.play().catch(() => {});
+      }
+      setCameraOn(true);
+    } catch (err) {
+      const name = err instanceof Error ? err.name : "";
+      if (name === "NotAllowedError") {
+        setToast("Permissão de câmera negada no navegador. Libere nos ajustes do site.");
+      } else {
+        setToast("Não foi possível abrir a câmera ao vivo. Use 'Tirar / enviar foto'.");
+      }
+    }
+  }
+
+  async function analyzeImageWithAI(dataUrl: string) {
+    setPhoto(dataUrl);
+    setAnalyzingPhoto(true);
+    try {
+      const resp = await fetch("/api/triage-vision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: dataUrl }),
+      });
+      const data = await resp.json();
+      if (data?.category && categories.some((c) => c.id === data.category)) {
+        setFormCategory(data.category);
+      }
+      if (data?.quantity) {
+        setQuantity(String(Math.max(1, Number(data.quantity) || 1)));
+      }
+      setAiResult({
+        item: data.item || "Item identificado",
+        confidence: data.confidence || 0.9,
+        observation: data.observation || "",
+        provider: data.provider || "fallback",
+        warning: data.warning,
+      });
+      if (data.unidentified) {
+        setToast("Imagem pouco nítida — aproxime o item e tente novamente.");
+      } else if (data.provider?.startsWith("gemini")) {
+        setToast(`IA (${data.provider}): ${data.item}`);
+      } else if (data.warning) {
+        setToast("IA indisponível no momento — usando fallback local.");
+      }
+    } catch {
+      setToast("Erro ao chamar a rota de análise de imagem.");
+    } finally {
+      setAnalyzingPhoto(false);
+    }
+  }
+
+  function captureVideoFrame() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+    const vw = video.videoWidth || 480;
+    const vh = video.videoHeight || 360;
+    const scale = Math.min(1, 640 / Math.max(vw, vh));
+    canvas.width = Math.round(vw * scale);
+    canvas.height = Math.round(vh * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const jpeg = canvas.toDataURL("image/jpeg", 0.82);
+    cooldownUntilRef.current = Date.now() + 2800;
+    stableTicksRef.current = 0;
+    stopCamera();
+    analyzeImageWithAI(jpeg);
+  }
+
+  useEffect(() => {
+    if (!cameraOn) return;
+    const smallCanvas = document.createElement("canvas");
+    smallCanvas.width = 48;
+    smallCanvas.height = 36;
+    const smallCtx = smallCanvas.getContext("2d");
+
+    const interval = setInterval(() => {
+      const video = videoRef.current;
+      if (
+        !video ||
+        video.readyState < 2 ||
+        analyzingPhoto ||
+        Date.now() < cooldownUntilRef.current ||
+        !smallCtx
+      ) {
+        return;
+      }
+      smallCtx.drawImage(video, 0, 0, 48, 36);
+      const frame = smallCtx.getImageData(0, 0, 48, 36).data;
+      if (prevFrameRef.current) {
+        let diff = 0;
+        for (let i = 0; i < frame.length; i += 4) {
+          diff +=
+            Math.abs(frame[i] - prevFrameRef.current[i]) +
+            Math.abs(frame[i + 1] - prevFrameRef.current[i + 1]) +
+            Math.abs(frame[i + 2] - prevFrameRef.current[i + 2]);
+        }
+        const avgDiff = diff / (48 * 36 * 3);
+        if (avgDiff > 1.2 && avgDiff < 11) {
+          stableTicksRef.current += 1;
+        } else if (avgDiff >= 11) {
+          stableTicksRef.current = 0;
+        }
+        if (stableTicksRef.current >= 6) {
+          captureVideoFrame();
+        }
+      }
+      prevFrameRef.current = new Uint8ClampedArray(frame);
+    }, 110);
+
+    return () => clearInterval(interval);
+  }, [cameraOn, analyzingPhoto]);
+
+  useEffect(() => {
+    if (profile !== "volunteer") stopCamera();
+  }, [profile]);
+
   function register(event: React.FormEvent) {
     event.preventDefault();
     const count = Number(quantity);
@@ -430,32 +593,53 @@ export default function TriaApp() {
                         <p>Um registro simples. Uma ajuda que chega.</p>
                       </div>
                     </div>
-                    <div className={`capture-area ${photo ? "has-photo" : ""}`}>
-                      {photo ? (
+                    <div className={`capture-area ${photo || cameraOn ? "has-photo" : ""}`}>
+                      <div
+                        className="camera-live-wrap"
+                        style={{ display: cameraOn ? "flex" : "none" }}
+                      >
+                        <video ref={videoRef} autoPlay playsInline muted />
+                        <button
+                          type="button"
+                          className="button primary capture-now-btn"
+                          onClick={captureVideoFrame}
+                        >
+                          Capturar frame
+                        </button>
+                      </div>
+                      {!cameraOn && photo && (
                         <img
                           src={photo}
-                          alt="Foto selecionada para referência no cadastro manual"
+                          alt="Foto selecionada para classificação por IA"
                         />
-                      ) : (
+                      )}
+                      {!cameraOn && !photo && (
                         <>
                           <span className="camera-circle">
                             <img src="/figma/5-imgIconCamera.svg" alt="" />
                           </span>
                           <h3>Menos digitação, mais acolhimento.</h3>
                           <p>
-                            A triagem por câmera chega na próxima etapa.
-                            <br />
-                            Por enquanto, registre os itens abaixo.
+                            Tire uma foto ou aponte a câmera para identificar a
+                            categoria automaticamente com IA.
                           </p>
                         </>
                       )}
+                      {analyzingPhoto && (
+                        <div className="capture-loading">
+                          <Loader2 size={20} className="spin-icon" />
+                          <span>Identificando item com IA...</span>
+                        </div>
+                      )}
                     </div>
+                    <canvas ref={canvasRef} hidden />
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
                       ref={upload}
                       hidden
-                      aria-label="Selecionar foto de referência"
+                      aria-label="Tirar ou selecionar foto do item"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
@@ -471,19 +655,62 @@ export default function TriaApp() {
                           return;
                         }
                         const reader = new FileReader();
-                        reader.onload = () => setPhoto(reader.result as string);
+                        reader.onload = () => {
+                          if (typeof reader.result === "string") {
+                            stopCamera();
+                            analyzeImageWithAI(reader.result);
+                          }
+                        };
                         reader.readAsDataURL(file);
                       }}
                     />
-                    <button
-                      className="button secondary full"
-                      onClick={() => upload.current?.click()}
-                    >
-                      <ImagePlus size={17} />
-                      {photo
-                        ? "Trocar foto de referência"
-                        : "Adicionar foto de referência"}
-                    </button>
+                    <div className="capture-actions">
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => upload.current?.click()}
+                      >
+                        <ImagePlus size={17} />
+                        {photo ? "Nova foto" : "Tirar / enviar foto"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => (cameraOn ? stopCamera() : startCamera())}
+                      >
+                        {cameraOn ? (
+                          <>
+                            <CameraOff size={17} />
+                            Fechar câmera
+                          </>
+                        ) : (
+                          <>
+                            <Camera size={17} />
+                            Câmera ao vivo
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {aiResult && (
+                      <div className="ai-detection-box">
+                        <div className="ai-detection-top">
+                          <strong>
+                            IA ({aiResult.provider === "fallback" ? "Fallback" : aiResult.provider}):{" "}
+                            {aiResult.item}
+                          </strong>
+                          <span>
+                            {Math.round(aiResult.confidence * 100)}% confiança
+                          </span>
+                        </div>
+                        {aiResult.warning ? (
+                          <p className="ai-warning-text">
+                            Aviso da chave: {aiResult.warning}
+                          </p>
+                        ) : (
+                          aiResult.observation && <p>{aiResult.observation}</p>
+                        )}
+                      </div>
+                    )}
                     <form onSubmit={register} className="entry-form">
                       <fieldset className="category-picker">
                         <legend>1. O que chegou?</legend>
@@ -556,8 +783,8 @@ export default function TriaApp() {
                         Registrar entrada
                       </button>
                       <p className="form-hint">
-                        A foto é apenas uma referência visual. O registro é
-                        manual.
+                        A IA sugere categoria e quantidade pela foto; confira
+                        antes de registrar.
                       </p>
                     </form>
                   </section>
