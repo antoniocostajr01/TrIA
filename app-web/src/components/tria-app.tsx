@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { Brand } from "./brand";
+import { ManagerOverview } from "./manager-overview";
 import {
   Heart,
   MapPin,
@@ -11,7 +13,6 @@ import {
   Plus,
   Check,
   X,
-  Camera,
   ImagePlus,
   Recycle,
   Package,
@@ -64,6 +65,7 @@ const profiles = [
 const storageKey = "tria-ui-demo-v1";
 export default function TriaApp() {
   const [profile, setProfile] = useState<Profile>("citizen");
+  const [managerSection, setManagerSection] = useState("visao-geral");
   const [category, setCategory] = useState<CategoryId | "all">("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -210,17 +212,11 @@ export default function TriaApp() {
     setToast("Cenário de demonstração restaurado.");
   }
   return (
-    <>
+    <div className={`app-shell profile-${profile}`}>
       <header className="topbar">
         <div className="topbar-inner">
           <a className="brand" href="/" aria-label="TrIA, início">
-            <span className="brand-icon">
-              <Sprout size={24} />
-            </span>
-            <span>
-              Tr<span className="brand-light">IA</span>
-              <span className="brand-dot">.</span>
-            </span>
+            <Brand />
           </a>
           <nav className="profile-switch" aria-label="Escolha seu perfil">
             {profiles.map((p) => (
@@ -236,7 +232,7 @@ export default function TriaApp() {
             ))}
           </nav>
           <div className="header-right">
-            <span className="demo-tag">Demonstração</span>
+            <span className="demo-tag">DADOS SIMULADOS</span>
             <button
               className="icon-button"
               ref={helpButton}
@@ -248,6 +244,60 @@ export default function TriaApp() {
           </div>
         </div>
       </header>
+      {profile === "manager" && (
+        <aside className="manager-sidebar">
+          <a href="/" aria-label="TrIA, início">
+            <Brand />
+          </a>
+          <div className="sidebar-shelter">
+            <span>ABRIGO</span>
+            <strong>{current.name}</strong>
+            <small>Porto Alegre · Cenário simulado</small>
+          </div>
+          <nav aria-label="Navegação do painel">
+            <a
+              className={managerSection === "visao-geral" ? "active" : ""}
+              aria-current={
+                managerSection === "visao-geral" ? "location" : undefined
+              }
+              href="#visao-geral"
+              onClick={() => setManagerSection("visao-geral")}
+            >
+              <img src="/figma/7-imgIconGrid.svg" alt="" />
+              Visão geral
+            </a>
+            <a
+              className={managerSection === "estoque" ? "active" : ""}
+              aria-current={
+                managerSection === "estoque" ? "location" : undefined
+              }
+              href="#estoque"
+              onClick={() => setManagerSection("estoque")}
+            >
+              <img src="/figma/7-imgIconBox.svg" alt="" />
+              Estoque
+            </a>
+            <a
+              className={managerSection === "mural" ? "active" : ""}
+              aria-current={managerSection === "mural" ? "location" : undefined}
+              href="#mural"
+              onClick={() => setManagerSection("mural")}
+            >
+              <img src="/figma/7-imgIconHeart.svg" alt="" />
+              Necessidades
+            </a>
+            <button onClick={() => setProfile("citizen")}>
+              <img src="/figma/7-imgIconShare.svg" alt="" />
+              Página pública
+            </button>
+          </nav>
+          <div className="sidebar-note">
+            <ShieldCheck size={21} />
+            <strong>Uma rede que acolhe.</strong>
+            <p>Do seu abrigo, para o abrigo certo.</p>
+          </div>
+        </aside>
+      )}
       <main>
         <div className="context-line">
           <span>
@@ -257,7 +307,7 @@ export default function TriaApp() {
             <ShieldCheck size={15} /> Uma rede de cuidado, conectada.
           </span>
         </div>
-        <section className="page-heading">
+        <section className="page-heading" id="inicio">
           <div>
             <div className="eyebrow">
               {profile === "citizen"
@@ -278,10 +328,7 @@ export default function TriaApp() {
                   <span>Cada gesto também.</span>
                 </>
               ) : (
-                <>
-                  Uma visão clara.
-                  <br className="mobile-break" /> <span>Mais cuidado.</span>
-                </>
+                <>Visão geral do abrigo</>
               )}
             </h1>
             <p>
@@ -423,6 +470,47 @@ export default function TriaApp() {
                 </div>
               </div>
             </section>
+            {selected && (
+              <section
+                className="donor-detail"
+                aria-label="Orientações para a doação"
+              >
+                <div className="donor-detail-heading">
+                  <span className="eyebrow">DOAÇÃO CERTA</span>
+                  <h2>
+                    {shelters.find((s) => s.id === selected)?.name} precisa de:
+                  </h2>
+                  <p>Necessidades do cenário de demonstração.</p>
+                </div>
+                <div className="donor-need-list">
+                  {categories
+                    .filter(
+                      (c) =>
+                        stockStatus(
+                          c.id,
+                          shelters.find((s) => s.id === selected)!.stock[c.id],
+                        ) === "critical",
+                    )
+                    .map((c) => (
+                      <div key={c.id}>
+                        <span className="donor-need-icon">
+                          <c.icon size={23} />
+                        </span>
+                        <strong>{c.label}</strong>
+                        <span className="status-badge critical">URGENTE</span>
+                      </div>
+                    ))}
+                </div>
+                <div className="dont-send">
+                  <h3>Por favor, não envie</h3>
+                  <p>
+                    Roupas rasgadas, sujas, com mofo ou mau cheiro. Separe
+                    apenas peças em condições de uso.
+                  </p>
+                  <small>Orientação ilustrativa para esta demonstração.</small>
+                </div>
+              </section>
+            )}
             <div className="care-note">
               <span className="care-icon">
                 <Heart size={21} />
@@ -465,7 +553,7 @@ export default function TriaApp() {
             {profile === "volunteer" ? (
               <>
                 <div className="work-grid">
-                  <section className="panel">
+                  <section className="panel triage-panel">
                     <div className="panel-heading">
                       <span className="soft-icon">
                         <ScanLine size={21} />
@@ -484,7 +572,7 @@ export default function TriaApp() {
                       ) : (
                         <>
                           <span className="camera-circle">
-                            <Camera size={30} strokeWidth={1.4} />
+                            <img src="/figma/5-imgIconCamera.svg" alt="" />
                           </span>
                           <h3>Menos digitação, mais acolhimento.</h3>
                           <p>
@@ -530,41 +618,74 @@ export default function TriaApp() {
                         : "Adicionar foto de referência"}
                     </button>
                     <form onSubmit={register} className="entry-form">
-                      <div className="form-row">
-                        <label>
-                          Categoria
-                          <select
-                            value={formCategory}
-                            onChange={(e) =>
-                              setFormCategory(e.target.value as CategoryId)
-                            }
-                          >
-                            {categories.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="quantity-field">
-                          Quantidade <span>({formInfo.unit})</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="10000"
-                            step="1"
-                            required
-                            value={quantity}
-                            onChange={(e) => setQuantity(e.target.value)}
-                          />
-                        </label>
+                      <fieldset className="category-picker">
+                        <legend>1. O que chegou?</legend>
+                        <div className="donation-tiles">
+                          {categories.map((c) => (
+                            <button
+                              type="button"
+                              key={c.id}
+                              className={`donation-tile tile-${c.id} ${formCategory === c.id ? "selected" : ""}`}
+                              aria-pressed={formCategory === c.id}
+                              onClick={() => setFormCategory(c.id)}
+                            >
+                              <c.icon size={28} />
+                              <span>{c.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </fieldset>
+                      <label
+                        className="quantity-label"
+                        htmlFor="donation-quantity"
+                      >
+                        2. Qual a quantidade? <span>({formInfo.unit})</span>
+                      </label>
+                      <div className="quantity-stepper">
+                        <button
+                          type="button"
+                          aria-label="Diminuir quantidade"
+                          disabled={Number(quantity) <= 1}
+                          onClick={() =>
+                            setQuantity(
+                              String(Math.max(1, (Number(quantity) || 1) - 1)),
+                            )
+                          }
+                        >
+                          <img src="/figma/5-imgIconMinus.svg" alt="" />
+                        </button>
+                        <input
+                          id="donation-quantity"
+                          aria-label={`Quantidade em ${formInfo.unit}`}
+                          type="number"
+                          min="1"
+                          max="10000"
+                          step="1"
+                          required
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          aria-label="Aumentar quantidade"
+                          disabled={Number(quantity) >= 10000}
+                          onClick={() =>
+                            setQuantity(
+                              String(
+                                Math.min(10000, (Number(quantity) || 0) + 1),
+                              ),
+                            )
+                          }
+                        >
+                          <img src="/figma/5-imgIconPlus.svg" alt="" />
+                        </button>
                       </div>
                       <button
                         className="button primary full"
                         type="submit"
                         disabled={!ready}
                       >
-                        <Plus size={18} />
+                        <img src="/figma/5-imgIcone1.svg" alt="" />
                         Registrar entrada
                       </button>
                       <p className="form-hint">
@@ -659,6 +780,16 @@ export default function TriaApp() {
               </>
             ) : (
               <>
+                <ManagerOverview
+                  shelter={current}
+                  entries={entries}
+                  recycled={recycled}
+                  alertCount={alerts.length}
+                />
+                <div className="inventory-heading" id="estoque">
+                  <h2>Estoque por categoria</h2>
+                  <p>Itens disponíveis no cenário de demonstração.</p>
+                </div>
                 <section
                   className="inventory-grid"
                   aria-label="Estoque do abrigo"
@@ -699,7 +830,7 @@ export default function TriaApp() {
                     );
                   })}
                 </section>
-                <div className="work-grid manager-grid">
+                <div className="work-grid manager-grid" id="mural">
                   <section className="panel">
                     <div className="section-heading">
                       <div>
@@ -838,8 +969,7 @@ export default function TriaApp() {
         )}
         <footer>
           <div className="footer-brand">
-            <Sprout size={18} />
-            <strong>TrIA</strong>
+            <Brand compact />
             <span>Do seu abrigo, para o abrigo certo.</span>
           </div>
           <div>
@@ -897,9 +1027,7 @@ export default function TriaApp() {
             >
               <X />
             </button>
-            <span className="brand-icon">
-              <Sprout size={25} />
-            </span>
+            <Brand />
             <h2 id="help-title">Uma prévia do TrIA.</h2>
             <p>
               Explore os três perfis, registre doações manualmente e acompanhe o
@@ -919,7 +1047,7 @@ export default function TriaApp() {
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }
 function Stat({

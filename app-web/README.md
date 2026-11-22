@@ -1,6 +1,6 @@
 # TrIA · Interface web
 
-Base responsiva do TrIA para o Hackathon CEUE, com Next.js, React, TypeScript, Tailwind CSS e Leaflet. A identidade usa tipografia de sistema, superfícies claras e verde como cor de ação.
+Base responsiva do TrIA para o Hackathon CEUE, com Next.js, React, TypeScript, Tailwind CSS e Leaflet. A identidade segue o Figma TrIA: violeta `#4B2FD6`, fundo `#F6F4EE`, títulos em DM Serif Display e textos em Atkinson Hyperlegible Next. As fontes são distribuídas localmente via Fontsource, sem requisições ao Google Fonts em tempo de execução.
 
 ## Executar
 
@@ -41,3 +41,17 @@ O estoque é calculado a partir do cenário inicial mais as entradas. Trocar de 
 Sem backend, login, Gemini, câmera ao vivo, reconhecimento automático, sincronização entre dispositivos/abas ou logística de transferências. Não requer chave de API. Não há solicitações de permissões de câmera. Dados e pedidos são simulados; nomes/coordenadas vêm da skill do projeto e não representam locais com atendimento confirmado. Não utilizar para orientar doações reais. As estimativas de referência não são parâmetros operacionais validados.
 
 `Restaurar demo` limpa os registros locais e recupera o cenário inicial. A foto não é persistida. Dados de abrigos externos são apenas demonstrativos e nenhuma notificação é enviada ao manifestar interesse.
+
+## Referência visual do Figma
+
+Arquivo: https://www.figma.com/design/jY1KlsflqTTO7Wj28tJqhh/TrIA
+
+- Design system: página `26:81`, cores `26:86`.
+- Gestor: `7:40`; navegação lateral, métricas e painéis com gráficos adaptados ao estoque das seis categorias.
+- Voluntário: `5:178`; categorias em cartões de toque, contador de quantidade e botão principal de 64 px. A interface mantém as seis categorias do produto em vez do recorte apenas têxtil da referência.
+- Doador: `9:188`; hierarquia das necessidades e bloco “Por favor, não envie” ao selecionar um abrigo. O mapa existente permanece disponível.
+- Logo B2 · Três pilhas (glass): ícone claro `31:223`, exportado diretamente para `public/brand/tria-glass.png` e usado na marca, ajuda, rodapé e favicon. O wordmark em minúsculas segue `31:237`. O PNG é mantido como exportado; os SVGs em `public/figma/` são os ícones originais das telas utilizadas, sem redesenho.
+
+`src/app/figma-theme.css` concentra os tokens e a adaptação responsiva sobre os estilos da base. `src/components/brand.tsx` centraliza a marca; `manager-overview.tsx` calcula as métricas e a cobertura por categoria a partir do mesmo estado local da interface. Não soma unidades diferentes; as barras mostram a razão entre quantidade e referência de cada categoria, com teto visual de 200%. O lote de reciclagem é da rede inteira, identificado no cartão.
+
+A referência contém também autenticação, lotes de roupas e integrações com banco/IA. Esses fluxos não foram implementados nesta atualização visual. Gráficos e métricas usam o cenário local existente, sem indicadores fictícios de uma operação ao vivo.
