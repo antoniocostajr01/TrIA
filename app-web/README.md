@@ -24,7 +24,7 @@ npm start
 
 - **Cidadão:** mapa de Porto Alegre, seleção de abrigo, busca por nome/bairro e seis filtros de doação. A categoria determina o status exibido: urgente, recebendo ou coleta suspensa.
 - **Voluntário:** seleção de abrigo, registro manual com quantidade inteira de 1 a 10.000 e unidade por categoria, histórico de entradas, foto de referência local (JPG/PNG/WebP, até 5 MB) e contador de peças para reciclagem da rede. A foto não é analisada nem enviada.
-- **Gestor:** estoque derivado das entradas locais, mural com publicação de pedidos e manifestação demonstrativa de interesse. Não envia mensagens nem movimenta remessas.
+- **Gestor:** estoque derivado das entradas locais, mural com publicação de pedidos e manifestação demonstrativa de interesse. Publica pedidos e registra remessas simuladas, atualizando os estoques de origem e destino. Não envia mensagens externas nem executa transporte físico.
 - **Geral:** navegação por perfil no topo em desktop e na barra inferior em mobile, ajuda e restauração da demo.
 
 ## Estrutura e funcionamento
@@ -38,7 +38,7 @@ O estoque é calculado a partir do cenário inicial mais as entradas. Trocar de 
 
 ## Limites desta etapa
 
-Sem backend, login, Gemini, câmera ao vivo, reconhecimento automático, sincronização entre dispositivos/abas ou logística de transferências. Não requer chave de API. Não há solicitações de permissões de câmera. Dados e pedidos são simulados; nomes/coordenadas vêm da skill do projeto e não representam locais com atendimento confirmado. Não utilizar para orientar doações reais. As estimativas de referência não são parâmetros operacionais validados.
+Sem backend, login, Gemini, câmera ao vivo, reconhecimento automático, sincronização entre dispositivos/abas ou logística física de transferências. Não requer chave de API. Não há solicitações de permissões de câmera. Dados e pedidos são simulados; nomes/coordenadas vêm da skill do projeto e não representam locais com atendimento confirmado. Não utilizar para orientar doações reais. As estimativas de referência não são parâmetros operacionais validados.
 
 `Restaurar demo` limpa os registros locais e recupera o cenário inicial. A foto não é persistida. Dados de abrigos externos são apenas demonstrativos e nenhuma notificação é enviada ao manifestar interesse.
 
@@ -55,3 +55,11 @@ Arquivo: https://www.figma.com/design/jY1KlsflqTTO7Wj28tJqhh/TrIA
 `src/app/figma-theme.css` concentra os tokens e a adaptação responsiva sobre os estilos da base. `src/components/brand.tsx` centraliza a marca; `manager-overview.tsx` calcula as métricas e a cobertura por categoria a partir do mesmo estado local da interface. Não soma unidades diferentes; as barras mostram a razão entre quantidade e referência de cada categoria, com teto visual de 200%. O lote de reciclagem é da rede inteira, identificado no cartão.
 
 A referência contém também autenticação, lotes de roupas e integrações com banco/IA. Esses fluxos não foram implementados nesta atualização visual. Gráficos e métricas usam o cenário local existente, sem indicadores fictícios de uma operação ao vivo.
+
+## Fluxos completos para demonstração mobile
+
+O perfil **Hub de triagem** registra entradas, mantém histórico, separa peças para reciclagem e envia remessas simuladas a locais em falta. O **Abrigo** consulta estoque, publica pedidos e recebe remessas simuladas; o **Doador** filtra o mapa, identifica suspensão por excesso e consulta orientações do abrigo selecionado.
+
+`TransferPanel` cruza excedentes e faltas por categoria com regras determinísticas, sem afirmar uso de IA. Uma remessa reduz a quantidade na origem e acrescenta a mesma quantidade ao destino. O histórico é persistido junto às entradas, alertas e reciclagem. As sugestões desaparecem quando o déficit é atendido. A movimentação é apenas do cenário local.
+
+Para ensaios isolados, `/?demo=videos&profile=citizen`, `/?demo=videos&profile=manager` e `/?demo=videos&profile=volunteer` usam a chave `tria-video-demo-v1`, separada do armazenamento normal. O hub começa selecionado no Demhab; as demais perspectivas começam no Sesi. Links rápidos navegam entre as seções de cada perfil. A restauração da demo também limpa seu histórico de remessas.

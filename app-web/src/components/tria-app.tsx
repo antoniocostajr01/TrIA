@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Brand } from "./brand";
+import { TransferPanel, type Transfer } from "./transfer-panel";
 import { ManagerOverview } from "./manager-overview";
 import {
   Heart,
@@ -51,7 +52,7 @@ const profiles = [
   { id: "citizen", label: "Quero doar", mobile: "Doar", icon: MapPin },
   {
     id: "volunteer",
-    label: "Sou voluntário",
+    label: "Hub de triagem",
     mobile: "Triagem",
     icon: ScanLine,
   },
@@ -73,6 +74,8 @@ export default function TriaApp() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [recycled, setRecycled] = useState(0);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const activeStorageKey = useRef(storageKey);
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState("");
   const [help, setHelp] = useState(false);
@@ -85,8 +88,15 @@ export default function TriaApp() {
   const helpDialog = useRef<HTMLElement>(null);
   const helpButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "videos")
+      activeStorageKey.current = "tria-video-demo-v1";
+    const initialProfile = params.get("profile");
+    if (["citizen", "volunteer", "manager"].includes(initialProfile || ""))
+      setProfile(initialProfile as Profile);
+    if (initialProfile === "volunteer") setShelterId("demhab");
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = localStorage.getItem(activeStorageKey.current);
       if (raw) {
         const data = JSON.parse(raw);
         if (
@@ -111,6 +121,19 @@ export default function TriaApp() {
             ),
           );
           setRecycled(Math.max(0, data.recycled));
+          if (Array.isArray(data.transfers))
+            setTransfers(
+              data.transfers.filter(
+                (t: Transfer) =>
+                  t &&
+                  seedShelters.some((s) => s.id === t.fromId) &&
+                  seedShelters.some((s) => s.id === t.toId) &&
+                  t.fromId !== t.toId &&
+                  categories.some((c) => c.id === t.category) &&
+                  Number.isSafeInteger(t.quantity) &&
+                  t.quantity > 0,
+              ),
+            );
         }
       }
     } catch {
@@ -122,14 +145,14 @@ export default function TriaApp() {
     if (ready) {
       try {
         localStorage.setItem(
-          storageKey,
-          JSON.stringify({ entries, alerts, recycled }),
+          activeStorageKey.current,
+          JSON.stringify({ entries, alerts, recycled, transfers }),
         );
       } catch {
         /* A interface continua utilizável sem persistência. */
       }
     }
-  }, [entries, alerts, recycled, ready]);
+  }, [entries, alerts, recycled, transfers, ready]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 4200);
@@ -172,7 +195,13 @@ export default function TriaApp() {
         q +
           entries
             .filter((e) => e.shelterId === s.id && e.category === c)
-            .reduce((sum, e) => sum + e.quantity, 0),
+            .reduce((sum, e) => sum + e.quantity, 0) +
+          transfers
+            .filter((t) => t.category === c && t.toId === s.id)
+            .reduce((sum, t) => sum + t.quantity, 0) -
+          transfers
+            .filter((t) => t.category === c && t.fromId === s.id)
+            .reduce((sum, t) => sum + t.quantity, 0),
       ]),
     ) as Shelter["stock"],
   }));
@@ -205,10 +234,40 @@ export default function TriaApp() {
     setQuantity("1");
     setToast("Entrada registrada no estoque de demonstração.");
   }
+  function transfer(
+    fromId: string,
+    toId: string,
+    category: CategoryId,
+    quantity: number,
+  ) {
+    const source = shelters.find((s) => s.id === fromId);
+    if (
+      !source ||
+      !Number.isSafeInteger(quantity) ||
+      quantity < 1 ||
+      source.stock[category] < quantity
+    )
+      return;
+    setTransfers((prev) => [
+      {
+        id: crypto.randomUUID(),
+        fromId,
+        toId,
+        category,
+        quantity,
+        date: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    setToast(
+      "Remessa simulada registrada. Os dois estoques foram atualizados.",
+    );
+  }
   function reset() {
     setEntries([]);
     setAlerts(initialAlerts);
     setRecycled(0);
+    setTransfers([]);
     setToast("Cenário de demonstração restaurado.");
   }
   return (
@@ -323,9 +382,9 @@ export default function TriaApp() {
                 </>
               ) : profile === "volunteer" ? (
                 <>
-                  Cada item conta.
-                  <br className="mobile-break" />{" "}
-                  <span>Cada gesto também.</span>
+                  Hub de triagem.
+                  <br />
+                  <span>Cada item conta.</span>
                 </>
               ) : (
                 <>Visão geral do abrigo</>
@@ -335,7 +394,7 @@ export default function TriaApp() {
               {profile === "citizen"
                 ? "Encontre um abrigo e descubra o que faz a diferença agora."
                 : profile === "volunteer"
-                  ? "Registre o que chega e ajude a manter o abrigo abastecido."
+                  ? "Receba doações, organize os itens e distribua para quem precisa."
                   : "Acompanhe necessidades, organize o estoque e conecte sua rede."}
             </p>
           </div>
@@ -430,7 +489,17 @@ export default function TriaApp() {
                         shelter={s}
                         category={category}
                         selected={selected === s.id}
-                        onClick={() => setSelected(s.id)}
+                        onClick={() => {
+                          setSelected(s.id);
+                          if (window.innerWidth <= 760)
+                            setTimeout(
+                              () =>
+                                document
+                                  .getElementById("necessidades")
+                                  ?.scrollIntoView({ behavior: "smooth" }),
+                              150,
+                            );
+                        }}
                       />
                     ))}
                     {!filtered.length && (
@@ -473,6 +542,7 @@ export default function TriaApp() {
             {selected && (
               <section
                 className="donor-detail"
+                id="necessidades"
                 aria-label="Orientações para a doação"
               >
                 <div className="donor-detail-heading">
@@ -550,10 +620,30 @@ export default function TriaApp() {
                 Dados locais · Cenário simulado
               </span>
             </div>
+            <nav className="section-shortcuts" aria-label="Seções deste perfil">
+              {(profile === "volunteer"
+                ? [
+                    ["registrar", "Registrar"],
+                    ["entradas", "Entradas"],
+                    ["reciclagem", "Reciclagem"],
+                    ["redistribuir", "Distribuir"],
+                  ]
+                : [
+                    ["visao-geral", "Resumo"],
+                    ["estoque", "Estoque"],
+                    ["mural", "Mural"],
+                    ["redistribuir", "Remessas"],
+                  ]
+              ).map(([id, label]) => (
+                <a key={id} href={`#${id}`}>
+                  {label}
+                </a>
+              ))}
+            </nav>
             {profile === "volunteer" ? (
               <>
                 <div className="work-grid">
-                  <section className="panel triage-panel">
+                  <section className="panel triage-panel" id="registrar">
                     <div className="panel-heading">
                       <span className="soft-icon">
                         <ScanLine size={21} />
@@ -563,7 +653,7 @@ export default function TriaApp() {
                         <p>Um registro simples. Uma ajuda que chega.</p>
                       </div>
                     </div>
-                    <div className="capture-area">
+                    <div className={`capture-area ${photo ? "has-photo" : ""}`}>
                       {photo ? (
                         <img
                           src={photo}
@@ -695,7 +785,7 @@ export default function TriaApp() {
                     </form>
                   </section>
                   <div className="right-column">
-                    <section className="panel">
+                    <section className="panel" id="entradas">
                       <div className="section-heading">
                         <h2>Últimas entradas</h2>
                         <span className="count-pill">
@@ -747,7 +837,7 @@ export default function TriaApp() {
                         )}
                       </div>
                     </section>
-                    <section className="recycle-panel">
+                    <section className="recycle-panel" id="reciclagem">
                       <span className="soft-icon">
                         <Recycle size={23} />
                       </span>
@@ -775,6 +865,13 @@ export default function TriaApp() {
                         </button>
                       </div>
                     </section>
+                    <TransferPanel
+                      shelters={shelters}
+                      currentId={shelterId}
+                      mode="send"
+                      transfers={transfers}
+                      onTransfer={transfer}
+                    />
                   </div>
                 </div>
               </>
@@ -932,36 +1029,13 @@ export default function TriaApp() {
                       ))}
                     </div>
                   </section>
-                  <section className="panel connection-panel">
-                    <span className="soft-icon">
-                      <Sprout size={25} />
-                    </span>
-                    <span className="eyebrow">UMA REDE MAIS FORTE</span>
-                    <h2>
-                      O que sobra aqui
-                      <br />
-                      pode acolher ali.
-                    </h2>
-                    <p>
-                      A próxima etapa vai conectar excedentes às necessidades de
-                      outros abrigos, com sugestões de parceria.
-                    </p>
-                    <div className="coming-soon">
-                      <ShieldCheck size={17} />
-                      Análise com IA em breve
-                    </div>
-                    <div className="connection-detail">
-                      <span>
-                        <Building2 size={19} />
-                        {current.name}
-                      </span>
-                      <span className="connection-line" />
-                      <span>
-                        <Heart size={19} />
-                        Uma rede inteira para apoiar
-                      </span>
-                    </div>
-                  </section>
+                  <TransferPanel
+                    shelters={shelters}
+                    currentId={shelterId}
+                    mode="receive"
+                    transfers={transfers}
+                    onTransfer={transfer}
+                  />
                 </div>
               </>
             )}

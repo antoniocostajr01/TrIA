@@ -1511,3 +1511,114 @@ footer button {
 .manager-sidebar nav > a[href="#visao-geral"]:not(.active) img {
   filter: brightness(0);
 }
+.section-shortcuts {
+  display: flex;
+  gap: 8px;
+  margin: -8px 0 24px;
+  flex-wrap: wrap;
+}
+.section-shortcuts a {
+  border: 1px solid var(--line);
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: white;
+  font-size: 14px;
+  color: var(--green);
+  font-weight: 600;
+}
+.section-shortcuts a:hover {
+  background: var(--mint);
+}
+#registrar,
+#entradas,
+#reciclagem,
+#redistribuir,
+#necessidades {
+  scroll-margin-top: 105px;
+}
+.transfer-panel {
+  min-width: 0;
+}
+.transfer-simulation {
+  display: inline-block;
+  color: #0e6a75;
+  background: #ddf1f2;
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.transfer-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+.transfer-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.transfer-category {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  color: var(--green);
+}
+.transfer-category strong {
+  font-size: 16px;
+}
+.transfer-card p {
+  font-size: 14px;
+  margin: 7px 0;
+  line-height: 1.5;
+}
+.transfer-card p > span {
+  display: inline-block;
+  width: 35px;
+  color: var(--muted);
+}
+.transfer-card .button {
+  margin-top: 12px;
+  font-size: 14px;
+}
+.transfer-history {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.transfer-history h3 {
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+.transfer-history > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  color: #1e7a3c;
+}
+.transfer-history strong {
+  font-size: 14px;
+}
+.transfer-history small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.capture-area {
+  display: none;
+}
+.triage-panel > .button.secondary {
+  margin-top: 0;
+}
+.section-shortcuts a:focus-visible {
+  outline: 3px solid var(--green);
+}
+
+.capture-area.has-photo {
+  display: flex;
+}
