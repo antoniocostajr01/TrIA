@@ -5,6 +5,7 @@ import { ShelterNeedsExplorer } from "./shelter-needs-explorer";
 import { Brand } from "./brand";
 import { TransferPanel, type Transfer } from "./transfer-panel";
 import { ManagerOverview } from "./manager-overview";
+import { TriaChatbot, type TriaChatAction } from "./tria-chatbot";
 import {
   Heart,
   MapPin,
@@ -372,6 +373,35 @@ export default function TriaApp() {
     setQuantity("1");
     setToast("Entrada registrada no estoque.");
   }
+  function handleChatActions(actions: TriaChatAction[]) {
+    const newEntries: Entry[] = [];
+    let recycledAdded = 0;
+
+    for (const act of actions) {
+      if (act.type === "register_entry") {
+        newEntries.push({
+          id: crypto.randomUUID(),
+          shelterId: act.shelterId,
+          category: act.category,
+          quantity: act.quantity,
+          date: new Date().toISOString(),
+        });
+      } else if (act.type === "register_recycle") {
+        recycledAdded += act.quantity;
+      }
+    }
+
+    if (newEntries.length > 0) {
+      setEntries((prev) => [...newEntries, ...prev]);
+      setToast(
+        `${newEntries.length} lançamento(s) registrado(s) via Assistente IA.`,
+      );
+    }
+    if (recycledAdded > 0) {
+      setRecycled((n) => n + recycledAdded);
+    }
+  }
+
   function transfer(
     fromId: string,
     toId: string,
@@ -1068,6 +1098,13 @@ export default function TriaApp() {
           </button>
         ))}
       </nav>
+      <TriaChatbot
+        profile={profile}
+        activeShelterId={shelterId}
+        shelters={shelters}
+        alerts={alerts}
+        onApplyActions={handleChatActions}
+      />
       <div className="toast-container" role="status" aria-live="polite">
         {toast && (
           <div className="toast">
