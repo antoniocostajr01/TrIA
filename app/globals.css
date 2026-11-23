@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
